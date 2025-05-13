@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>IDEA.RU — Форум с ИИ</title>
+    <!-- Подключаем Firebase и UI -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
+        <style>
+        /* Твой стиль + новые элементы */
+        body {
+            font-family: 'Arial', sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .auth-panel {
+            text-align: right;
+            margin-bottom: 20px;
+        }
+
+        .idea-form {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        #idea-text {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+            padding: 15px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+
+        .btn {
+            background: #4a90e2;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: 0.3s;
+            margin: 5px;
+        }
+
+        .btn-beta {
+            background: #ff6b6b;
+            position: relative;
+        }
+        .btn-beta::after {
+            content: "beta";
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: #ff4757;
+            color: white;
+            padding: 2px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+        }
+
+        .idea-card {
+            background: white;
+            padding: 20px;
+            margin: 15px 0;
+            border-radius: 12px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+        }
+
+        .comment-section {
+            margin-top: 15px;
+            padding-left: 20px;
+            border-left: 3px solid #eee;
+        }
+
+        .like-btn {
+            cursor: pointer;
+            color: #666;
+            margin-right: 15px;
+        }
+        .like-btn.liked {
+            color: #ff6b6b;
+        }
+    </style>
+</head>
+<body>
+    <div class="auth-panel">
+        <button class="btn" id="auth-btn">Войти через Google</button>
+    </div>
+
+    <div class="idea-form">
+        <textarea id="idea-text" placeholder="🚀 Опиши свою гениальную идею..."></textarea>
+        <button class="btn btn-beta" onclick="improveIdea()">Улучшить с ИИ</button>
+        <button class="btn" onclick="addIdea()">Опубликовать</button>
+    </div>
+
+    <div id="ideas-list"></div>
+
+    <script>
+        // 1. Настройка Firebase (замени эти значения своими)
+        const firebaseConfig = {
+            apiKey: "AIzaSyD3v_u28yLe-UK7RQ5p1VdgCzeW7MowaRg",
+            authDomain: "idea-ru.firebaseapp.com",
+            projectId: "idea-ru",
+            storageBucket: "idea-ru.appspot.com",
+            messagingSenderId: "780897409314",
+            appId: "1:780897409314:web:c516345497fd98fe8b6d7b",
+            measurementId: "G-VT6BTMDV8V"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+
+        // 2. Авторизация через Google 
+        document.getElementById('auth-btn').addEventListener('click', () => {
+  const provider = new firebase.auth.GoogleAuthProvider();
+  firebase.auth().signInWithPopup(provider)
+    .then((result) => {
+      console.log('Успешный вход:', result.user);
+    })
+    .catch((error) => {
+      console.error('Ошибка:', error.message);
+      alert('Ошибка: ' + error.message); // Покажите ошибку пользователю
+    });
+});
+
+        // 3. Работа с идеями
+        async function addIdea() {
+            const user = auth.currentUser;
+            if (!user) return alert('Сначала войди!');
+            
+            const text = document.getElementById('idea-text').value;await db.collection('ideas').add({
+                text,
+                likes: [],
+                comments: [],
+                author: user.displayName,
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
+            });
+            document.getElementById('idea-text').value = '';
+        }
+
+        // 4. Лайки
+        async function toggleLike(ideaId) {
+            const user = auth.currentUser;
+            if (!user) return;
+            
+            const ideaRef = db.collection('ideas').doc(ideaId);
+            const idea = await ideaRef.get();
+            const likes = idea.data().likes;
+            
+            if (likes.includes(user.uid)) {
+                await ideaRef.update({
+                    likes: firebase.firestore.FieldValue.arrayRemove(user.uid)
+                });
+            } else {
+                await ideaRef.update({
+                    likes: firebase.firestore.FieldValue.arrayUnion(user.uid)
+                });
+            }
+        }
+
+        // 5. Комментарии
+        async function addComment(ideaId) {
+            const text = prompt('Введи комментарий:');
+            if (!text) return;
+            
+            await db.collection('ideas').doc(ideaId).update({
+                comments: firebase.firestore.FieldValue.arrayUnion({
+                    text,
+                    author: auth.currentUser.displayName,
+                    timestamp: new Date()
+                })
+            });
+        }
+
+      // 6. Отображение идей в реальном времени  
+db.collection('ideas').orderBy('timestamp', 'desc').onSnapshot(function(snapshot) {  
+    const ideasList = document.getElementById('ideas-list');  
+    ideasList.innerHTML = '';  
+
+    snapshot.forEach(function(doc) {  
+        const idea = doc.data();  
+        ideasList.innerHTML += 
+            '<div class="idea-card">' +  
+                '<p>' + idea.text + '</p>' +  
+                '<small>Автор: ' + idea.author + 
+                    '<span class="like-btn ' + (idea.likes.includes(auth.currentUser?.uid) ? 'liked' : '') + '"' + 
+                          ' onclick="toggleLike(\'' + doc.id + '\')">' +
+                        ' ❤️ ' + idea.likes.length + 
+                    '</span>' +  
+                    '<button class="btn" onclick="addComment(\'' + doc.id + '\')">💬 Комментировать</button>' +  
+                '</small>' +  
+                '<div class="comment-section">' +  
+                    idea.comments.map(function(c) {  
+                        return '<p><b>' + c.author + ':</b> ' + c.text + '</p>';  
+                    }).join('') +  
+                '</div>' +  
+            '</div>';  
+    });  
+});
+
+        // 7. Улучшение идеи через ИИ (как раньше)
+        async function improveIdea() {
+            // ... тот же код из предыдущего примера ...
+        }
+    </script>
+</body>
+</html>
