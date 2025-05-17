@@ -2,110 +2,75 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>IDEA.RU — Форум с ИИ</title>
-    <!-- Подключаем Firebase и UI -->
+    <title>IDEA.RU | Форум гениальных идей</title>
+    <!-- Firebase -->
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-firestore.js"></script>
-        <style>
-        /* Твой стиль + новые элементы */
+    <style>
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             max-width: 800px;
             margin: 0 auto;
             padding: 20px;
-            background: #f8f9fa;
+            background: #f5f5f5;
         }
-
         .auth-panel {
             text-align: right;
             margin-bottom: 20px;
         }
-
         .idea-form {
             background: white;
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-
         #idea-text {
             width: 100%;
             height: 100px;
             margin: 10px 0;
-            padding: 15px;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            font-size: 16px;
+            padding: 10px;
+            border: 1px solid #ddd;
         }
-
         .btn {
             background: #4a90e2;
             color: white;
             border: none;
-            padding: 12px 24px;
-            border-radius: 25px;
+            padding: 10px 20px;
+            border-radius: 5px;
             cursor: pointer;
-            transition: 0.3s;
             margin: 5px;
         }
-
         .btn-beta {
             background: #ff6b6b;
-            position: relative;
         }
-        .btn-beta::after {
-            content: "beta";
-            position: absolute;
-            top: -8px;
-            right: -8px;
-            background: #ff4757;
-            color: white;
-            padding: 2px 6px;
-            border-radius: 10px;
-            font-size: 10px;
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
-
-        .idea-card {
-            background: white;
-            padding: 20px;
-            margin: 15px 0;
-            border-radius: 12px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.05);
-        }
-
-        .comment-section {
-            margin-top: 15px;
-            padding-left: 20px;
-            border-left: 3px solid #eee;
-        }
-
-        .like-btn {
-            cursor: pointer;
-            color: #666;
-            margin-right: 15px;
-        }
-        .like-btn.liked {
-            color: #ff6b6b;
+        .user-avatar {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
         }
     </style>
 </head>
 <body>
-    <div class="auth-panel">
+    <div class="auth-panel" id="auth-panel">
         <button class="btn" id="auth-btn">Войти через Google</button>
     </div>
 
     <div class="idea-form">
-        <textarea id="idea-text" placeholder="🚀 Опиши свою гениальную идею..."></textarea>
-        <button class="btn btn-beta" onclick="improveIdea()">Улучшить с ИИ</button>
-        <button class="btn" onclick="addIdea()">Опубликовать</button>
+        <textarea id="idea-text" placeholder="Опишите свою гениальную идею..."></textarea>
+        <button class="btn btn-beta" id="improve-btn">Улучшить с ИИ</button>
+        <button class="btn" id="publish-btn">Опубликовать</button>
     </div>
 
     <div id="ideas-list"></div>
 
     <script>
-        // 1. Настройка Firebase (замени эти значения своими)
+        // Конфиг Firebase (замените на свой!)
         const firebaseConfig = {
             apiKey: "AIzaSyD3v_u28yLe-UK7RQ5p1VdgCzeW7MowaRg",
             authDomain: "idea-ru.firebaseapp.com",
@@ -116,101 +81,126 @@
             measurementId: "G-VT6BTMDV8V"
         };
         firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore();
         const auth = firebase.auth();
+        const db = firebase.firestore();
 
-        // 2. Авторизация через Google 
-        document.getElementById('auth-btn').addEventListener('click', () => {
-  const provider = new firebase.auth.GoogleAuthProvider();
-  firebase.auth().signInWithPopup(provider)
-    .then((result) => {
-      console.log('Успешный вход:', result.user);
-    })
-    .catch((error) => {
-      console.error('Ошибка:', error.message);
-      alert('Ошибка: ' + error.message); // Покажите ошибку пользователю
-    });
-});
+        // Элементы DOM
+        const authBtn = document.getElementById('auth-btn');
+        const improveBtn = document.getElementById('improve-btn');
+        const publishBtn = document.getElementById('publish-btn');
+        const authPanel = document.getElementById('auth-panel');
 
-        // 3. Работа с идеями
-        async function addIdea() {
+        // Проверка авторизации при загрузке
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                // Пользователь вошел
+                authPanel.innerHTML = 
+                    <div class="user-info">
+                        <img src="${user.photoURL}" class="user-avatar" alt="Аватар">
+                        <span>${user.displayName}</span>
+                        <button class="btn" onclick="logout()">Выйти</button>
+                    </div>
+                ;
+                improveBtn.disabled = false;
+            } else {
+                // Пользователь не авторизован
+                authBtn.textContent = "Войти через Google";
+                improveBtn.disabled = true;
+            }
+        });
+
+        // Вход через Google
+        authBtn.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider)
+                .catch(error => alert("Ошибка: " + error.message));
+        });
+
+        // Выход
+        function logout() {
+            auth.signOut();
+        }
+        // Улучшение идеи через ИИ
+        improveBtn.addEventListener('click', async () => {
             const user = auth.currentUser;
-            if (!user) return alert('Сначала войди!');
-            
-            const text = document.getElementById('idea-text').value;await db.collection('ideas').add({
+            if (!user) return alert("Сначала войдите!");
+
+            const text = document.getElementById('idea-text').value;
+            if (!text) return alert("Введите идею!");
+
+            // Замените на ваш API-ключ OpenAI
+            improveBtn.addEventListener('click', async () => {
+  const user = auth.currentUser;
+  if (!user) return alert("Сначала войдите!");
+
+  const text = document.getElementById('idea-text').value;
+  if (!text) return alert("Введите идею!");
+
+  // Ваш ключ OpenRouter (найдите его в настройках аккаунта на openrouter.ai)
+  const OPENROUTER_API_KEY = "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";
+
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": Bearer ${OPENROUTER_API_KEY},
+        "Content-Type": "application/json",
+        "HTTP-Referer": "nmld07.github.io", // Укажите ваш домен
+        "X-Title": "IDEA.RU" // Название вашего приложения
+      },
+      body: JSON.stringify({
+        model: "openai/gpt-3.5-turbo", // Можно выбрать другую модель
+        messages: [
+          { role: "user", content: "Улучши эту идею, добавь деталей: " + text }
+        ]
+      })
+    });
+
+    const data = await response.json();
+    if (data.error) throw new Error(data.error.message);
+    document.getElementById('idea-text').value = data.choices[0].message.content;
+  } catch (error) {
+    alert("Ошибка: " + error.message);
+  }
+});
+           const data = await response.json();
+            document.getElementById('idea-text').value = data.choices[0].message.content;
+        });
+
+        // Публикация идеи
+        publishBtn.addEventListener('click', async () => {
+            const user = auth.currentUser;
+            if (!user) return alert("Сначала войдите!");
+
+            const text = document.getElementById('idea-text').value;
+            if (!text) return alert("Введите идею!");
+
+            await db.collection('ideas').add({
                 text,
+                author: user.displayName,
+                authorId: user.uid,
                 likes: [],
                 comments: [],
-                author: user.displayName,
                 timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
-            document.getElementById('idea-text').value = '';
-        }
+            document.getElementById('idea-text').value = "";
+        });
 
-        // 4. Лайки
-        async function toggleLike(ideaId) {
-            const user = auth.currentUser;
-            if (!user) return;
-            
-            const ideaRef = db.collection('ideas').doc(ideaId);
-            const idea = await ideaRef.get();
-            const likes = idea.data().likes;
-            
-            if (likes.includes(user.uid)) {
-                await ideaRef.update({
-                    likes: firebase.firestore.FieldValue.arrayRemove(user.uid)
-                });
-            } else {
-                await ideaRef.update({
-                    likes: firebase.firestore.FieldValue.arrayUnion(user.uid)
-                });
-            }
-        }
-
-        // 5. Комментарии
-        async function addComment(ideaId) {
-            const text = prompt('Введи комментарий:');
-            if (!text) return;
-            
-            await db.collection('ideas').doc(ideaId).update({
-                comments: firebase.firestore.FieldValue.arrayUnion({
-                    text,
-                    author: auth.currentUser.displayName,
-                    timestamp: new Date()
-                })
+        // Загрузка идей
+        db.collection('ideas').orderBy('timestamp', 'desc').onSnapshot(snapshot => {
+            const ideasList = document.getElementById('ideas-list');
+            ideasList.innerHTML = '';
+            snapshot.forEach(doc => {
+                const idea = doc.data();
+                ideasList.innerHTML += 
+                    <div class="idea-card">
+                        <p>${idea.text}</p>
+                        <small>Автор: ${idea.author}</small>
+                    </div>
+                ;
             });
-        }
-
-      // 6. Отображение идей в реальном времени  
-db.collection('ideas').orderBy('timestamp', 'desc').onSnapshot(function(snapshot) {  
-    const ideasList = document.getElementById('ideas-list');  
-    ideasList.innerHTML = '';  
-
-    snapshot.forEach(function(doc) {  
-        const idea = doc.data();  
-        ideasList.innerHTML += 
-            '<div class="idea-card">' +  
-                '<p>' + idea.text + '</p>' +  
-                '<small>Автор: ' + idea.author + 
-                    '<span class="like-btn ' + (idea.likes.includes(auth.currentUser?.uid) ? 'liked' : '') + '"' + 
-                          ' onclick="toggleLike(\'' + doc.id + '\')">' +
-                        ' ❤️ ' + idea.likes.length + 
-                    '</span>' +  
-                    '<button class="btn" onclick="addComment(\'' + doc.id + '\')">💬 Комментировать</button>' +  
-                '</small>' +  
-                '<div class="comment-section">' +  
-                    idea.comments.map(function(c) {  
-                        return '<p><b>' + c.author + ':</b> ' + c.text + '</p>';  
-                    }).join('') +  
-                '</div>' +  
-            '</div>';  
-    });  
-});
-
-        // 7. Улучшение идеи через ИИ (как раньше)
-        async function improveIdea() {
-            // ... тот же код из предыдущего примера ...
-        }
+        });
     </script>
 </body>
 </html>
+
