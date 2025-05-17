@@ -91,23 +91,20 @@
         const authPanel = document.getElementById('auth-panel');
 
         // Проверка авторизации при загрузке
-        auth.onAuthStateChanged(user => {
-    if (user) {
-        // Пользователь вошел
-        authPanel.innerHTML = 
-            '<div class="user-info">' +
-                '<img src="' + user.photoURL + '" class="user-avatar" alt="Аватар">' +
-                '<span>' + user.displayName + '</span>' +
-                '<button class="btn" onclick="logout()">Выйти</button>' +
-            '</div>';
-        improveBtn.disabled = false;
-    } else {
-        // Пользователь не авторизован
-        authBtn.textContent = "Войти через Google";
-        improveBtn.disabled = true;
-    }
+       auth.onAuthStateChanged(user => {
+  if (user) {
+    authPanel.innerHTML = 
+      '<div class="user-info">' +
+        '<img src="' + user.photoURL + '" class="user-avatar">' +
+        '<span>' + user.displayName + '</span>' +
+        '<button class="btn" onclick="logout()">Выйти</button>' +
+      '</div>';
+    improveBtn.disabled = false;
+  } else {
+    authBtn.textContent = "Войти через Google";
+    improveBtn.disabled = true;
+  }
 });
-
         // Вход через Google
         authBtn.addEventListener('click', () => {
             const provider = new firebase.auth.GoogleAuthProvider();
